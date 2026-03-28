@@ -28,7 +28,7 @@ module.exports = async (req, res) => {
           .reverse();
       }
     } catch(e) { result[sym] = []; }
-    await new Promise(r => setTimeout(r, 300));
+    await new Promise(r => setTimeout(r, 500));
   }
 
   res.setHeader('Cache-Control', 's-maxage=86400, stale-while-revalidate');
