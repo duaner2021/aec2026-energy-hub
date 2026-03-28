@@ -1,0 +1,13 @@
+# Environment variables — NEVER commit these
+.env
+.env.local
+.env.development
+.env.production
+.env*.local
+
+# Dependencies
+node_modules/
+
+# Puppeteer / dev tooling
+screenshot-*.mjs
+temporary screenshots/
