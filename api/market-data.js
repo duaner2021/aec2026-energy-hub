@@ -24,7 +24,7 @@ const EQUITY_SYMBOLS = [
 
 function fetchJson(url) {
   return new Promise((resolve, reject) => {
-    https.get(url, (res) => {
+    const req = https.get(url, (res) => {
       let data = '';
       res.on('data', chunk => { data += chunk; });
       res.on('end', () => {
@@ -32,6 +32,8 @@ function fetchJson(url) {
         catch (e) { reject(new Error('JSON parse error: ' + data.slice(0, 100))); }
       });
     }).on('error', reject);
+    // Abort after 7s so a hanging call doesn't block the whole function
+    req.setTimeout(7000, () => req.destroy(new Error('Request timeout')));
   });
 }
 
@@ -61,16 +63,6 @@ async function getEquityQuote(symbol, apiKey) {
   };
 }
 
-// Run items in parallel batches to avoid burst rate-limiting
-async function batchMap(items, asyncFn, batchSize, delayMs) {
-  for (let i = 0; i < items.length; i += batchSize) {
-    await Promise.all(items.slice(i, i + batchSize).map(asyncFn));
-    if (i + batchSize < items.length) {
-      await new Promise(r => setTimeout(r, delayMs));
-    }
-  }
-}
-
 module.exports = async (req, res) => {
   const apiKey = process.env.ALPHAVANTAGE_KEY;
   if (!apiKey) {
@@ -80,7 +72,7 @@ module.exports = async (req, res) => {
   const results = { commodities: {}, equities: {} };
   const errors  = [];
 
-  // Commodities: 3 in parallel (fast, always needed first)
+  // Step 1 — Commodities: 3 in parallel (fast, needed first)
   await Promise.all(COMMODITY_SYMBOLS.map(async sym => {
     try {
       const d = await getCommodity(sym, apiKey);
@@ -88,17 +80,25 @@ module.exports = async (req, res) => {
     } catch (e) { errors.push(`${sym}: ${e.message}`); }
   }));
 
-  // Equities: batches of 8, 300ms between batches (~3s total for 24 symbols)
-  await batchMap(EQUITY_SYMBOLS, async sym => {
+  // Step 2 — 1.2s pause so the burst-rate window resets before 29 equity calls fire
+  await new Promise(r => setTimeout(r, 1200));
+
+  // Step 3 — All equities in parallel (burst window is fresh; function still has ~6s left)
+  await Promise.all(EQUITY_SYMBOLS.map(async sym => {
     try {
       const d = await getEquityQuote(sym, apiKey);
       if (d) results.equities[sym] = d;
     } catch (e) { errors.push(`${sym}: ${e.message}`); }
-  }, 8, 300);
+  }));
 
   if (errors.length) results.errors = errors;
 
-  res.setHeader('Cache-Control', 's-maxage=900, stale-while-revalidate');
+  // Only cache for the full 15 min when we got a reasonably complete equity set.
+  // A short 60s cache lets a poisoned cold-start recover on the next request.
+  const equityCount = Object.keys(results.equities).length;
+  const cacheSeconds = equityCount >= 20 ? 900 : 60;
+
+  res.setHeader('Cache-Control', `s-maxage=${cacheSeconds}, stale-while-revalidate`);
   res.setHeader('Content-Type', 'application/json');
   res.status(200).json(results);
 };
