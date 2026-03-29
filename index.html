@@ -4010,8 +4010,11 @@
       // Batch 2 — Commodity prices: proxy table headers (3 AV calls)
       await loadMarketData();
 
-      // Batch 2b — Equity prices: proxy table rows (29 AV calls, batched 5×300ms)
+      // Batch 2b — Equity prices: proxy table rows (29 AV calls, batched 5×500ms)
       await loadEquityData();
+
+      // 1.5s pause so AV's burst window fully resets before macro fires
+      await new Promise(r => setTimeout(r, 1500));
 
       // Batch 3 — Macro Correlation: correlation panel (5 AV calls)
       if (window.__loadMacro) await window.__loadMacro();

@@ -53,8 +53,12 @@ module.exports = async (_req, res) => {
 
   const equities = {};
 
-  // Batches of 5 with 300ms between batches — ~5s total, well within 10s limit.
-  // 5 concurrent per batch is safe below AV's burst threshold.
+  // 2s warm-up: Lambda network stack (DNS + TLS) needs time to fully initialise
+  // on cold start. Without this, the first batch always fails.
+  await new Promise(r => setTimeout(r, 2000));
+
+  // Batches of 5 with 500ms between batches.
+  // Slow is fine — reliable matters more than fast.
   for (let i = 0; i < EQUITY_SYMBOLS.length; i += 5) {
     const batch = EQUITY_SYMBOLS.slice(i, i + 5);
     await Promise.all(batch.map(async sym => {
@@ -64,7 +68,7 @@ module.exports = async (_req, res) => {
       } catch (e) { /* silent — missing equity shows as blank */ }
     }));
     if (i + 5 < EQUITY_SYMBOLS.length) {
-      await new Promise(r => setTimeout(r, 300));
+      await new Promise(r => setTimeout(r, 500));
     }
   }
 
