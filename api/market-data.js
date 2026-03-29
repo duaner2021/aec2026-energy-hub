@@ -16,7 +16,7 @@ const EQUITY_SYMBOLS = [
   'BP', 'SHEL', 'TTE', 'EQNR',          // Very High
   'RIG',                                  // Medium
   // Henry Hub proxies (XOM/CVX already above)
-  'EQT', 'RRC', 'CRK', 'AR',            // Very High — RRC replaces CHK (rebranded to EXE)
+  'EQT', 'RRC', 'CRK', 'AR',            // Very High
   'LNG', 'EXE',                           // High
   // Macro indicators
   'SPY', 'UUP', 'GLD',
@@ -55,10 +55,20 @@ async function getEquityQuote(symbol, apiKey) {
   if (!q || !q['05. price']) return null;
   return {
     symbol,
-    price:  parseFloat(q['05. price']).toFixed(2),
-    change: parseFloat(q['10. change percent'].replace('%','')).toFixed(2),
+    price:     parseFloat(q['05. price']).toFixed(2),
+    change:    parseFloat(q['10. change percent'].replace('%', '')).toFixed(2),
     prevClose: parseFloat(q['08. previous close']).toFixed(2),
   };
+}
+
+// Run items in parallel batches to avoid burst rate-limiting
+async function batchMap(items, asyncFn, batchSize, delayMs) {
+  for (let i = 0; i < items.length; i += batchSize) {
+    await Promise.all(items.slice(i, i + batchSize).map(asyncFn));
+    if (i + batchSize < items.length) {
+      await new Promise(r => setTimeout(r, delayMs));
+    }
+  }
 }
 
 module.exports = async (req, res) => {
@@ -70,30 +80,24 @@ module.exports = async (req, res) => {
   const results = { commodities: {}, equities: {} };
   const errors  = [];
 
-  // Fetch commodities and equities in parallel — paid plan supports concurrent requests
-  await Promise.all([
+  // Commodities: 3 in parallel (fast, always needed first)
+  await Promise.all(COMMODITY_SYMBOLS.map(async sym => {
+    try {
+      const d = await getCommodity(sym, apiKey);
+      if (d) results.commodities[sym] = d;
+    } catch (e) { errors.push(`${sym}: ${e.message}`); }
+  }));
 
-    // All 3 commodities in parallel
-    ...COMMODITY_SYMBOLS.map(async sym => {
-      try {
-        const d = await getCommodity(sym, apiKey);
-        if (d) results.commodities[sym] = d;
-      } catch (e) { errors.push(`${sym}: ${e.message}`); }
-    }),
-
-    // All equities in parallel
-    ...EQUITY_SYMBOLS.map(async sym => {
-      try {
-        const d = await getEquityQuote(sym, apiKey);
-        if (d) results.equities[sym] = d;
-      } catch (e) { errors.push(`${sym}: ${e.message}`); }
-    }),
-
-  ]);
+  // Equities: batches of 8, 300ms between batches (~3s total for 24 symbols)
+  await batchMap(EQUITY_SYMBOLS, async sym => {
+    try {
+      const d = await getEquityQuote(sym, apiKey);
+      if (d) results.equities[sym] = d;
+    } catch (e) { errors.push(`${sym}: ${e.message}`); }
+  }, 8, 300);
 
   if (errors.length) results.errors = errors;
 
-  // Cache at CDN layer for 15 minutes
   res.setHeader('Cache-Control', 's-maxage=900, stale-while-revalidate');
   res.setHeader('Content-Type', 'application/json');
   res.status(200).json(results);
