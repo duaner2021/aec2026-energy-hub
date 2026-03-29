@@ -14,22 +14,19 @@ module.exports = async (req, res) => {
   const apiKey = process.env.ALPHAVANTAGE_KEY;
   if (!apiKey) return res.status(500).json({ error: 'ALPHAVANTAGE_KEY not configured' });
 
-  const symbols = ['WTI', 'BRENT', 'NATURAL_GAS'];
   const result = {};
-  for (const sym of symbols) {
+
+  // Fetch all three commodities in parallel to avoid sequential cold-start failures
+  await Promise.all(['WTI', 'BRENT', 'NATURAL_GAS'].map(async sym => {
     try {
       const json = await fetchJson(
         `https://www.alphavantage.co/query?function=${sym}&interval=daily&apikey=${apiKey}`
       );
-      if (json.data) {
-        result[sym] = json.data
-          .filter(d => d.value && d.value !== '.')
-          .map(d => ({ date: d.date, value: parseFloat(d.value) }))
-          .reverse();
-      }
+      result[sym] = json.data
+        ? json.data.filter(d => d.value && d.value !== '.').map(d => ({ date: d.date, value: parseFloat(d.value) })).reverse()
+        : [];
     } catch(e) { result[sym] = []; }
-    await new Promise(r => setTimeout(r, 500));
-  }
+  }));
 
   res.setHeader('Cache-Control', 's-maxage=86400, stale-while-revalidate');
   res.setHeader('Content-Type', 'application/json');
