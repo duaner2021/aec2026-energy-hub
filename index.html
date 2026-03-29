@@ -2978,7 +2978,7 @@
       }
     })();
 
-    loadMarketData();
+    // loadMarketData is triggered by the sequential batch loader below (AC.init chain)
 
     // ── ENERGY NEWS ─────────────────────────────────────────────
     (function() {
@@ -3176,13 +3176,8 @@
       }
 
       // Wait for market data to be available before populating cards
-      function waitForMarketData(cb, attempts) {
-        if (window.__marketData) { cb(); return; }
-        if ((attempts||0) > 20) { cb(); return; }
-        setTimeout(() => waitForMarketData(cb, (attempts||0)+1), 500);
-      }
-
-      waitForMarketData(loadMacro);
+      // Exposed so the sequential batch loader (bottom of script) can call this as Batch 3
+      window.__loadMacro = loadMacro;
     })();
 
     // ── BLS INFLATION DATA + CHART ───────────────────────────────
@@ -3969,7 +3964,19 @@
       }
     };
 
-    AC.init();
+    // ── SEQUENTIAL BATCH LOADER ─────────────────────────────────
+    // Fires batches one-at-a-time so Alpha Vantage never sees a burst.
+    // Each batch gets a fresh rate-limit window before it fires.
+    (async function() {
+      // Batch 1 — Energy Data (commodity history → charts)
+      await AC.init();
+
+      // Batch 2 — Relationships (market data → equity proxy table)
+      await loadMarketData();
+
+      // Batch 3 — Macro Correlation (macro history → correlation panel)
+      if (window.__loadMacro) await window.__loadMacro();
+    })();
 
     // Scroll reveal
     const reveals = document.querySelectorAll('.reveal');
