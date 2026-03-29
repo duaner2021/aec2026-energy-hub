@@ -2771,6 +2771,42 @@
       }
     }
 
+    async function loadEquityData() {
+      try {
+        const res = await fetch('/api/equity-data');
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        const data = await res.json();
+        const equities = data.equities || {};
+
+        // Merge equity data into the shared market data object
+        if (window.__marketData) {
+          window.__marketData.equities = equities;
+        } else {
+          window.__marketData = { commodities: {}, equities };
+        }
+
+        // Populate equity proxy rows
+        populateEquityRows(equities);
+
+        // Add equity tickers to the ticker bar alongside commodities
+        const ti = document.getElementById('tickerInner');
+        const tickerItems = [];
+        const commMap = { WTI: 'WTI', BRENT: 'BRENT', NATURAL_GAS: 'HH GAS' };
+        const comms = window.__marketData.commodities || {};
+        Object.entries(commMap).forEach(([key, label]) => {
+          if (comms[key]) tickerItems.push({ sym: label, price: comms[key].price, chg: comms[key].change });
+        });
+        ['XOM','CVX','EOG','COP','BP','SHEL','EQT','LNG','SLB'].forEach(sym => {
+          if (equities[sym]) tickerItems.push({ sym, price: equities[sym].price, chg: equities[sym].change });
+        });
+        if (tickerItems.length && ti) {
+          ti.innerHTML = buildTicker(tickerItems) + buildTicker(tickerItems);
+        }
+      } catch (e) {
+        console.warn('[Equity data] failed:', e.message);
+      }
+    }
+
     // ── TICKER CHIPS + EQUITY OVERVIEW MODAL ────────────────────
     (function() {
       // Convert eq-syms cells to clickable chips
@@ -3965,16 +4001,19 @@
     };
 
     // ── SEQUENTIAL BATCH LOADER ─────────────────────────────────
-    // Fires batches one-at-a-time so Alpha Vantage never sees a burst.
-    // Each batch gets a fresh rate-limit window before it fires.
+    // Each batch waits for the previous to finish so AV never sees a burst.
+    // Slow is fine — reliable matters more than fast.
     (async function() {
-      // Batch 1 — Energy Data (commodity history → charts)
+      // Batch 1 — Energy Data: commodity history → charts (3 AV calls)
       await AC.init();
 
-      // Batch 2 — Relationships (market data → equity proxy table)
+      // Batch 2 — Commodity prices: proxy table headers (3 AV calls)
       await loadMarketData();
 
-      // Batch 3 — Macro Correlation (macro history → correlation panel)
+      // Batch 2b — Equity prices: proxy table rows (29 AV calls, batched 5×300ms)
+      await loadEquityData();
+
+      // Batch 3 — Macro Correlation: correlation panel (5 AV calls)
       if (window.__loadMacro) await window.__loadMacro();
     })();
 
