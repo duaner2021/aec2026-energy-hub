@@ -16,7 +16,7 @@ const EQUITY_SYMBOLS = [
   'BP', 'SHEL', 'TTE', 'EQNR',          // Very High
   'RIG',                                  // Medium
   // Henry Hub proxies (XOM/CVX already above)
-  'EQT', 'CHK', 'CRK', 'AR',            // Very High
+  'EQT', 'RRC', 'CRK', 'AR',            // Very High — RRC replaces CHK (rebranded to EXE)
   'LNG', 'EXE',                           // High
   // Macro indicators
   'SPY', 'UUP', 'GLD',
@@ -67,27 +67,29 @@ module.exports = async (req, res) => {
     return res.status(500).json({ error: 'ALPHAVANTAGE_KEY not configured' });
   }
 
-  // Fetch commodities and equities — throttle to 5 req/min free tier
   const results = { commodities: {}, equities: {} };
   const errors  = [];
 
-  // Commodities first
-  for (const sym of COMMODITY_SYMBOLS) {
-    try {
-      const d = await getCommodity(sym, apiKey);
-      if (d) results.commodities[sym] = d;
-    } catch (e) { errors.push(`${sym}: ${e.message}`); }
-    await new Promise(r => setTimeout(r, 250)); // gentle throttle
-  }
+  // Fetch commodities and equities in parallel — paid plan supports concurrent requests
+  await Promise.all([
 
-  // Equities
-  for (const sym of EQUITY_SYMBOLS) {
-    try {
-      const d = await getEquityQuote(sym, apiKey);
-      if (d) results.equities[sym] = d;
-    } catch (e) { errors.push(`${sym}: ${e.message}`); }
-    await new Promise(r => setTimeout(r, 250));
-  }
+    // All 3 commodities in parallel
+    ...COMMODITY_SYMBOLS.map(async sym => {
+      try {
+        const d = await getCommodity(sym, apiKey);
+        if (d) results.commodities[sym] = d;
+      } catch (e) { errors.push(`${sym}: ${e.message}`); }
+    }),
+
+    // All equities in parallel
+    ...EQUITY_SYMBOLS.map(async sym => {
+      try {
+        const d = await getEquityQuote(sym, apiKey);
+        if (d) results.equities[sym] = d;
+      } catch (e) { errors.push(`${sym}: ${e.message}`); }
+    }),
+
+  ]);
 
   if (errors.length) results.errors = errors;
 
