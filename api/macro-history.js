@@ -16,8 +16,8 @@ module.exports = async (req, res) => {
 
   const result = {};
 
-  // Daily close history for SPY, UUP, GLD
-  for (const sym of ['SPY', 'UUP', 'GLD']) {
+  // Daily close history for SPY, UUP, GLD — fetched in parallel
+  await Promise.all(['SPY', 'UUP', 'GLD'].map(async sym => {
     try {
       const json = await fetchJson(
         `https://www.alphavantage.co/query?function=TIME_SERIES_DAILY&symbol=${sym}&outputsize=compact&apikey=${apiKey}`
@@ -28,10 +28,11 @@ module.exports = async (req, res) => {
           .slice(0, 40)
           .map(([date, v]) => ({ date, value: parseFloat(v['4. close']) }))
           .reverse();
+      } else {
+        result[sym] = [];
       }
     } catch(e) { result[sym] = []; }
-    await new Promise(r => setTimeout(r, 300));
-  }
+  }));
 
   // 10-Year Treasury Yield (daily)
   try {
