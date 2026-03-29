@@ -80,16 +80,21 @@ module.exports = async (req, res) => {
     } catch (e) { errors.push(`${sym}: ${e.message}`); }
   }));
 
-  // Step 2 — 1.2s pause so the burst-rate window resets before 29 equity calls fire
-  await new Promise(r => setTimeout(r, 1200));
+  // Step 2 — 800ms pause so AV's burst window fully resets after the commodity calls
+  await new Promise(r => setTimeout(r, 800));
 
-  // Step 3 — All equities in parallel (burst window is fresh; function still has ~6s left)
-  await Promise.all(EQUITY_SYMBOLS.map(async sym => {
-    try {
-      const d = await getEquityQuote(sym, apiKey);
-      if (d) results.equities[sym] = d;
-    } catch (e) { errors.push(`${sym}: ${e.message}`); }
-  }));
+  // Step 3 — Equities in batches of 8, no explicit inter-batch delay.
+  // The natural API response latency (~1-1.5s per batch) creates enough gap for
+  // the burst window to reset before each successive batch fires.
+  for (let i = 0; i < EQUITY_SYMBOLS.length; i += 8) {
+    const batch = EQUITY_SYMBOLS.slice(i, i + 8);
+    await Promise.all(batch.map(async sym => {
+      try {
+        const d = await getEquityQuote(sym, apiKey);
+        if (d) results.equities[sym] = d;
+      } catch (e) { errors.push(`${sym}: ${e.message}`); }
+    }));
+  }
 
   if (errors.length) results.errors = errors;
 
