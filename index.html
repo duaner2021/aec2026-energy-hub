@@ -2203,6 +2203,80 @@
       font-family: 'Fira Code', monospace;
       letter-spacing: 0.04em;
     }
+
+    /* ── SECTION LOADING OVERLAYS ─────────────────────────────────── */
+    #markets, #macro { position: relative; }
+
+    .section-load-overlay {
+      position: absolute;
+      inset: 0;
+      z-index: 50;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 20px;
+      background: rgba(10, 10, 10, 0.90);
+      backdrop-filter: blur(3px);
+      -webkit-backdrop-filter: blur(3px);
+      border-radius: 4px;
+      pointer-events: none;
+      opacity: 1;
+      transition: opacity 0.5s ease;
+    }
+    .section-load-overlay.hidden {
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    /* SVG ring wrapper */
+    .overlay-ring-wrap {
+      position: relative;
+      width: 96px;
+      height: 96px;
+    }
+    .overlay-ring-svg {
+      position: absolute;
+      inset: 0;
+      transform: rotate(-90deg);
+    }
+    .overlay-ring-bg {
+      fill: none;
+      stroke: rgba(209,100,19,0.15);
+      stroke-width: 3;
+    }
+    .overlay-ring-arc {
+      fill: none;
+      stroke: var(--orange);
+      stroke-width: 3;
+      stroke-linecap: round;
+      transition: stroke-dashoffset 0.95s linear;
+    }
+    .overlay-countdown {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: 'Fira Code', monospace;
+      font-size: 2rem;
+      font-weight: 600;
+      color: var(--orange);
+      line-height: 1;
+    }
+    .overlay-label {
+      font-family: 'Fira Code', monospace;
+      font-size: 0.7rem;
+      letter-spacing: 0.12em;
+      color: var(--gray);
+      text-transform: uppercase;
+      text-align: center;
+      max-width: 200px;
+    }
+    .overlay-label strong {
+      color: var(--orange-light);
+      font-weight: 600;
+    }
   </style>
 </head>
 <body>
@@ -2338,6 +2412,20 @@
 
   <!-- EQUITY CORRELATION TABLES -->
   <section id="markets" class="section">
+
+    <!-- Loading overlay — hidden after 3s when batch 2 fires -->
+    <div class="section-load-overlay" id="overlay-markets">
+      <div class="overlay-ring-wrap">
+        <svg class="overlay-ring-svg" viewBox="0 0 96 96">
+          <circle class="overlay-ring-bg" cx="48" cy="48" r="42"/>
+          <circle class="overlay-ring-arc" id="ring-markets" cx="48" cy="48" r="42"
+            stroke-dasharray="263.9" stroke-dashoffset="0"/>
+        </svg>
+        <div class="overlay-countdown" id="cd-markets">3</div>
+      </div>
+      <div class="overlay-label">Fetching <strong>relationships data</strong><br/>from Alpha Vantage&hellip;</div>
+    </div>
+
     <div class="section-eyebrow">Equity Correlations</div>
     <h2 class="section-title">Commodity–Equity<br />Proxy Relationships</h2>
     <p class="section-sub">Equities with the strongest price correlation to each benchmark — updated intraday via Alpha Vantage. Click on a ticker for more details.</p>
@@ -2476,6 +2564,20 @@
 
   <!-- MACRO CORRELATION PANEL -->
   <section id="macro" class="section">
+
+    <!-- Loading overlay — hidden after 6s when batch 3 fires -->
+    <div class="section-load-overlay" id="overlay-macro">
+      <div class="overlay-ring-wrap">
+        <svg class="overlay-ring-svg" viewBox="0 0 96 96">
+          <circle class="overlay-ring-bg" cx="48" cy="48" r="42"/>
+          <circle class="overlay-ring-arc" id="ring-macro" cx="48" cy="48" r="42"
+            stroke-dasharray="263.9" stroke-dashoffset="0"/>
+        </svg>
+        <div class="overlay-countdown" id="cd-macro">6</div>
+      </div>
+      <div class="overlay-label">Fetching <strong>macro correlation</strong><br/>from Alpha Vantage&hellip;</div>
+    </div>
+
     <div class="section-eyebrow">Macro Context</div>
     <h2 class="section-title">Macro Correlation<br />Panel</h2>
     <p class="section-sub">30-day Pearson correlation between energy benchmarks and key macro indicators — sourced from Alpha Vantage.</p>
@@ -4000,24 +4102,62 @@
       }
     };
 
-    // ── SEQUENTIAL BATCH LOADER ─────────────────────────────────
-    // Each batch waits for the previous to finish so AV never sees a burst.
-    // Slow is fine — reliable matters more than fast.
-    (async function() {
-      // Batch 1 — Energy Data: commodity history → charts (3 AV calls)
-      await AC.init();
+    // ── BATCH LOADER WITH COUNTDOWN OVERLAYS ────────────────────
+    // Batch 1 fires immediately. Batches 2 & 3 have visible countdown
+    // overlays so AV never gets simultaneous bursts across endpoints.
+    (function() {
+      const CIRC = 263.9; // 2π × r=42
 
-      // Batch 2 — Commodity prices: proxy table headers (3 AV calls)
-      await loadMarketData();
+      // Kick off a countdown that ticks every second, drains the SVG ring,
+      // then fires `onComplete` and hides the overlay.
+      function startCountdown(seconds, cdEl, ringEl, overlayEl, onComplete) {
+        cdEl.textContent = seconds;
+        ringEl.style.strokeDashoffset = '0';
 
-      // Batch 2b — Equity prices: proxy table rows (29 AV calls, batched 5×500ms)
-      await loadEquityData();
+        let remaining = seconds;
+        const perTick = CIRC / seconds;
 
-      // 2s pause so AV's burst window fully resets before macro fires
-      await new Promise(r => setTimeout(r, 2000));
+        const interval = setInterval(function() {
+          remaining--;
+          cdEl.textContent = remaining;
+          ringEl.style.strokeDashoffset = String((seconds - remaining) * perTick);
 
-      // Batch 3 — Macro Correlation: correlation panel (5 AV calls)
-      if (window.__loadMacro) await window.__loadMacro();
+          if (remaining <= 0) {
+            clearInterval(interval);
+            overlayEl.classList.add('hidden');
+            setTimeout(function() {
+              overlayEl.style.display = 'none';
+              onComplete();
+            }, 520); // wait for fade-out before firing
+          }
+        }, 1000);
+      }
+
+      // Batch 1 — Energy Data: fires immediately (3 AV calls via commodity-history)
+      AC.init();
+
+      // Batch 2 — Relationships: 3s countdown, then commodity prices + equity rows
+      startCountdown(
+        3,
+        document.getElementById('cd-markets'),
+        document.getElementById('ring-markets'),
+        document.getElementById('overlay-markets'),
+        function() {
+          loadMarketData();
+          loadEquityData();
+        }
+      );
+
+      // Batch 3 — Macro Correlation: 6s countdown, then macro-history (5 AV calls)
+      startCountdown(
+        6,
+        document.getElementById('cd-macro'),
+        document.getElementById('ring-macro'),
+        document.getElementById('overlay-macro'),
+        function() {
+          if (window.__loadMacro) window.__loadMacro();
+        }
+      );
     })();
 
     // Scroll reveal
