@@ -2421,7 +2421,7 @@
           <circle class="overlay-ring-arc" id="ring-markets" cx="48" cy="48" r="42"
             stroke-dasharray="263.9" stroke-dashoffset="0"/>
         </svg>
-        <div class="overlay-countdown" id="cd-markets">3</div>
+        <div class="overlay-countdown" id="cd-markets">6</div>
       </div>
       <div class="overlay-label">Fetching <strong>relationships data</strong><br/>from Alpha Vantage&hellip;</div>
     </div>
@@ -2573,7 +2573,7 @@
           <circle class="overlay-ring-arc" id="ring-macro" cx="48" cy="48" r="42"
             stroke-dasharray="263.9" stroke-dashoffset="0"/>
         </svg>
-        <div class="overlay-countdown" id="cd-macro">6</div>
+        <div class="overlay-countdown" id="cd-macro">12</div>
       </div>
       <div class="overlay-label">Fetching <strong>macro correlation</strong><br/>from Alpha Vantage&hellip;</div>
     </div>
@@ -4136,9 +4136,9 @@
       // Batch 1 — Energy Data: fires immediately (3 AV calls via commodity-history)
       AC.init();
 
-      // Batch 2 — Relationships: 3s countdown, then commodity prices + equity rows
+      // Batch 2 — Relationships: 6s countdown, then commodity prices + equity rows
       startCountdown(
-        3,
+        6,
         document.getElementById('cd-markets'),
         document.getElementById('ring-markets'),
         document.getElementById('overlay-markets'),
@@ -4148,9 +4148,9 @@
         }
       );
 
-      // Batch 3 — Macro Correlation: 6s countdown, then macro-history (5 AV calls)
+      // Batch 3 — Macro Correlation: 12s countdown, then macro-history (5 AV calls)
       startCountdown(
-        6,
+        12,
         document.getElementById('cd-macro'),
         document.getElementById('ring-macro'),
         document.getElementById('overlay-macro'),
