@@ -2335,7 +2335,7 @@
           <circle class="overlay-ring-arc" id="ring-analytics" cx="48" cy="48" r="42"
             stroke-dasharray="263.9" stroke-dashoffset="0"/>
         </svg>
-        <div class="overlay-countdown" id="cd-analytics">10</div>
+        <div class="overlay-countdown" id="cd-analytics">15</div>
       </div>
       <div class="overlay-label">Fetching <strong>energy data</strong><br/>from Alpha Vantage&hellip;</div>
     </div>
@@ -2435,7 +2435,7 @@
           <circle class="overlay-ring-arc" id="ring-markets" cx="48" cy="48" r="42"
             stroke-dasharray="263.9" stroke-dashoffset="0"/>
         </svg>
-        <div class="overlay-countdown" id="cd-markets">20</div>
+        <div class="overlay-countdown" id="cd-markets">30</div>
       </div>
       <div class="overlay-label">Fetching <strong>relationships data</strong><br/>from Alpha Vantage&hellip;</div>
     </div>
@@ -2587,7 +2587,7 @@
           <circle class="overlay-ring-arc" id="ring-macro" cx="48" cy="48" r="42"
             stroke-dasharray="263.9" stroke-dashoffset="0"/>
         </svg>
-        <div class="overlay-countdown" id="cd-macro">30</div>
+        <div class="overlay-countdown" id="cd-macro">45</div>
       </div>
       <div class="overlay-label">Fetching <strong>macro correlation</strong><br/>from Alpha Vantage&hellip;</div>
     </div>
@@ -4149,7 +4149,7 @@
 
       // Batch 1 — Energy Data: 10s countdown, then commodity-history (3 AV calls)
       startCountdown(
-        10,
+        15,
         document.getElementById('cd-analytics'),
         document.getElementById('ring-analytics'),
         document.getElementById('overlay-analytics'),
@@ -4158,7 +4158,7 @@
 
       // Batch 2 — Relationships: 20s countdown, then commodity prices + equity rows
       startCountdown(
-        20,
+        30,
         document.getElementById('cd-markets'),
         document.getElementById('ring-markets'),
         document.getElementById('overlay-markets'),
@@ -4170,7 +4170,7 @@
 
       // Batch 3 — Macro Correlation: 30s countdown, then macro-history (5 AV calls)
       startCountdown(
-        30,
+        45,
         document.getElementById('cd-macro'),
         document.getElementById('ring-macro'),
         document.getElementById('overlay-macro'),
