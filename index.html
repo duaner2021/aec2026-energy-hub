@@ -2205,7 +2205,7 @@
     }
 
     /* ── SECTION LOADING OVERLAYS ─────────────────────────────────── */
-    #markets, #macro { position: relative; }
+    #analytics, #markets, #macro { position: relative; }
 
     .section-load-overlay {
       position: absolute;
@@ -2326,6 +2326,20 @@
 
   <!-- DATA STREAMS -->
   <section id="analytics" class="streams-section" style="padding-top:108px">
+
+    <!-- Loading overlay — hidden after 10s when batch 1 fires -->
+    <div class="section-load-overlay" id="overlay-analytics">
+      <div class="overlay-ring-wrap">
+        <svg class="overlay-ring-svg" viewBox="0 0 96 96">
+          <circle class="overlay-ring-bg" cx="48" cy="48" r="42"/>
+          <circle class="overlay-ring-arc" id="ring-analytics" cx="48" cy="48" r="42"
+            stroke-dasharray="263.9" stroke-dashoffset="0"/>
+        </svg>
+        <div class="overlay-countdown" id="cd-analytics">10</div>
+      </div>
+      <div class="overlay-label">Fetching <strong>energy data</strong><br/>from Alpha Vantage&hellip;</div>
+    </div>
+
     <div class="section">
       <div class="section-eyebrow">Market Analytics</div>
       <h2 class="section-title">Energy Data</h2>
@@ -2421,7 +2435,7 @@
           <circle class="overlay-ring-arc" id="ring-markets" cx="48" cy="48" r="42"
             stroke-dasharray="263.9" stroke-dashoffset="0"/>
         </svg>
-        <div class="overlay-countdown" id="cd-markets">6</div>
+        <div class="overlay-countdown" id="cd-markets">20</div>
       </div>
       <div class="overlay-label">Fetching <strong>relationships data</strong><br/>from Alpha Vantage&hellip;</div>
     </div>
@@ -2573,7 +2587,7 @@
           <circle class="overlay-ring-arc" id="ring-macro" cx="48" cy="48" r="42"
             stroke-dasharray="263.9" stroke-dashoffset="0"/>
         </svg>
-        <div class="overlay-countdown" id="cd-macro">12</div>
+        <div class="overlay-countdown" id="cd-macro">30</div>
       </div>
       <div class="overlay-label">Fetching <strong>macro correlation</strong><br/>from Alpha Vantage&hellip;</div>
     </div>
@@ -4133,12 +4147,18 @@
         }, 1000);
       }
 
-      // Batch 1 — Energy Data: fires immediately (3 AV calls via commodity-history)
-      AC.init();
-
-      // Batch 2 — Relationships: 6s countdown, then commodity prices + equity rows
+      // Batch 1 — Energy Data: 10s countdown, then commodity-history (3 AV calls)
       startCountdown(
-        6,
+        10,
+        document.getElementById('cd-analytics'),
+        document.getElementById('ring-analytics'),
+        document.getElementById('overlay-analytics'),
+        function() { AC.init(); }
+      );
+
+      // Batch 2 — Relationships: 20s countdown, then commodity prices + equity rows
+      startCountdown(
+        20,
         document.getElementById('cd-markets'),
         document.getElementById('ring-markets'),
         document.getElementById('overlay-markets'),
@@ -4148,9 +4168,9 @@
         }
       );
 
-      // Batch 3 — Macro Correlation: 12s countdown, then macro-history (5 AV calls)
+      // Batch 3 — Macro Correlation: 30s countdown, then macro-history (5 AV calls)
       startCountdown(
-        12,
+        30,
         document.getElementById('cd-macro'),
         document.getElementById('ring-macro'),
         document.getElementById('overlay-macro'),
