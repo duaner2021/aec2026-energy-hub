@@ -1,6 +1,7 @@
 // Vercel Serverless Function — /api/equity-data
 // Fetches GLOBAL_QUOTE for all equity proxy symbols.
-// Batches of 5 with 300ms delay — conservative to avoid burst rate limits.
+// Staggered launch: one call starts every 150ms — keeps at most 3-4 in-flight
+// at any time, safely below Alpha Vantage's burst threshold.
 
 const https = require('https');
 
@@ -30,7 +31,8 @@ function fetchJson(url) {
         catch (e) { reject(new Error('JSON parse error: ' + data.slice(0, 100))); }
       });
     }).on('error', reject);
-    req.setTimeout(7000, () => req.destroy(new Error('Request timeout')));
+    // 3s per-call timeout — last call starts at ~6.2s, must finish by 10s
+    req.setTimeout(3000, () => req.destroy(new Error('Request timeout')));
   });
 }
 
@@ -53,24 +55,20 @@ module.exports = async (_req, res) => {
 
   const equities = {};
 
-  // 2s warm-up: Lambda network stack (DNS + TLS) needs time to fully initialise
-  // on cold start. Without this, the first batch always fails.
+  // 2s warm-up: lets Lambda DNS/TLS fully initialise on cold start
   await new Promise(r => setTimeout(r, 2000));
 
-  // Batches of 5 with 500ms between batches.
-  // Slow is fine — reliable matters more than fast.
-  for (let i = 0; i < EQUITY_SYMBOLS.length; i += 5) {
-    const batch = EQUITY_SYMBOLS.slice(i, i + 5);
-    await Promise.all(batch.map(async sym => {
-      try {
-        const d = await getEquityQuote(sym, apiKey);
-        if (d) equities[sym] = d;
-      } catch (e) { /* silent — missing equity shows as blank */ }
-    }));
-    if (i + 5 < EQUITY_SYMBOLS.length) {
-      await new Promise(r => setTimeout(r, 500));
-    }
-  }
+  // Staggered launch: each symbol starts 150ms after the previous one.
+  // Max ~4 calls in-flight at any time — eliminates synchronized burst spikes.
+  // Total launch window: 28 × 150ms = 4.2s → last call starts at ~6.2s,
+  // completes by ~7s — well within Vercel's 10s limit.
+  const promises = EQUITY_SYMBOLS.map((sym, i) =>
+    new Promise(r => setTimeout(r, i * 150))
+      .then(() => getEquityQuote(sym, apiKey))
+      .then(d => { if (d) equities[sym] = d; })
+      .catch(() => {})
+  );
+  await Promise.all(promises);
 
   const equityCount = Object.keys(equities).length;
   const cacheSeconds = equityCount >= 20 ? 900 : 60;
