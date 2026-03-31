@@ -34,7 +34,7 @@ module.exports = async (_req, res) => {
   const complete = ['WTI', 'BRENT', 'NATURAL_GAS'].every(s => result[s] && result[s].length > 0);
   const cacheSeconds = complete ? 86400 : 60;
 
-  res.setHeader('Cache-Control', `s-maxage=${cacheSeconds}, stale-while-revalidate`);
+  res.setHeader('Cache-Control', `s-maxage=${cacheSeconds}, stale-while-revalidate=3600`);
   res.setHeader('Content-Type', 'application/json');
   res.status(200).json(result);
 };
