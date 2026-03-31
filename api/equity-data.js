@@ -6,6 +6,8 @@
 const https = require('https');
 
 const EQUITY_SYMBOLS = [
+  // Macro indicators first — used by the macro panel, must not time out
+  'SPY', 'UUP', 'GLD',
   // WTI proxies
   'EOG', 'DVN', 'COP', 'OXY', 'APA',
   'XOM', 'CVX', 'HES', 'MRO',
@@ -17,8 +19,6 @@ const EQUITY_SYMBOLS = [
   // Henry Hub proxies
   'EQT', 'RRC', 'CRK', 'AR',
   'LNG', 'EXE',
-  // Macro indicators
-  'SPY', 'UUP', 'GLD',
 ];
 
 function fetchJson(url) {
